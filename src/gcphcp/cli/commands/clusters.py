@@ -270,6 +270,9 @@ def _build_cluster_spec(
     infra_id: str,
     wif_result: WIFSetupResult,
     description: Optional[str] = None,
+    network: Optional[str] = None,
+    subnet: Optional[str] = None,
+    endpoint_access: str = "Private",
 ) -> Dict:
     """Build the cluster data payload for API submission.
 
@@ -281,9 +284,27 @@ def _build_cluster_spec(
         wif_result: WIF setup result with WIF configuration
         description: Optional cluster description
 
+        network: VPC network name
+        subnet: Subnet name
+        endpoint_access: API server endpoint access mode (Private or PublicAndPrivate)
+
     Returns:
         Complete cluster data dict ready for API submission
     """
+    gcp_spec = {
+        "projectID": project_id,
+        "region": region,
+        "workloadIdentity": wif_result.wif_spec,
+    }
+
+    # Add network configuration if provided
+    if network:
+        gcp_spec["network"] = network
+    if subnet:
+        gcp_spec["subnet"] = subnet
+    if endpoint_access:
+        gcp_spec["endpointAccess"] = endpoint_access
+
     cluster_data = {
         "name": cluster_name,
         "target_project_id": project_id,
@@ -293,11 +314,7 @@ def _build_cluster_spec(
             "serviceAccountSigningKey": wif_result.signing_key_base64,
             "platform": {
                 "type": "GCP",
-                "gcp": {
-                    "projectID": project_id,
-                    "region": region,
-                    "workloadIdentity": wif_result.wif_spec,
-                },
+                "gcp": gcp_spec,
             },
         },
     }
@@ -585,6 +602,22 @@ def cluster_status(
     help="Path to PEM-encoded RSA private key for SA signing (manual mode)",
 )
 @click.option(
+    "--network",
+    required=True,
+    help="VPC network name",
+)
+@click.option(
+    "--subnet",
+    required=True,
+    help="Subnet name",
+)
+@click.option(
+    "--endpoint-access",
+    type=click.Choice(["Private", "PublicAndPrivate"], case_sensitive=True),
+    default="Private",
+    help="API server endpoint access mode (default: Private)",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Show what would be created without actually creating",
@@ -600,6 +633,9 @@ def create_cluster(
     setup_infra: bool,
     iam_config_file: str,
     signing_key_file: str,
+    network: str,
+    subnet: str,
+    endpoint_access: str,
     dry_run: bool,
 ) -> None:
     """Create a new cluster with WIF configuration.
@@ -617,10 +653,12 @@ def create_cluster(
     Examples:
 
       # Automatic infrastructure setup
-      gcphcp clusters create my-cluster --project my-project --setup-infra
+      gcphcp clusters create my-cluster --project my-project --setup-infra \\
+        --network my-vpc --subnet my-subnet
 
       # Manual mode using infra create output files
       gcphcp clusters create my-cluster --project my-project \\
+        --network my-vpc --subnet my-subnet \\
         --iam-config-file my-infra-iam-config.json \\
         --signing-key-file my-infra-signing-key.pem
     """
@@ -699,6 +737,9 @@ def create_cluster(
             infra_id=resolved_infra_id,
             wif_result=wif_result,
             description=description,
+            network=network,
+            subnet=subnet,
+            endpoint_access=endpoint_access,
         )
 
         if dry_run:
