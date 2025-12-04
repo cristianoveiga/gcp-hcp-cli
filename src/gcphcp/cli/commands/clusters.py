@@ -604,7 +604,7 @@ def cluster_status(
 @click.option(
     "--infra-config-file",
     type=click.Path(exists=True),
-    help="Path to infra config JSON from 'hypershift create infra' (provides network/subnet)",
+    help="Path to infra config JSON from 'hypershift create infra'",
 )
 @click.option(
     "--network",
@@ -690,7 +690,7 @@ def create_cluster(
         effective_subnet = subnet
 
         if infra_config_file:
-            # Load network/subnet from infra config file (hypershift create infra output)
+            # Load network/subnet from infra config file
             try:
                 with open(infra_config_file, "r") as f:
                     infra_config = json.load(f)
@@ -713,7 +713,9 @@ def create_cluster(
                     )
                     cli_context.console.print(f"[dim]  File: {infra_config_file}[/dim]")
                     if file_network:
-                        cli_context.console.print(f"[dim]  Network: {file_network}[/dim]")
+                        cli_context.console.print(
+                            f"[dim]  Network: {file_network}[/dim]"
+                        )
                     if file_subnet:
                         cli_context.console.print(f"[dim]  Subnet: {file_subnet}[/dim]")
 
