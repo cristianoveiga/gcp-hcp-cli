@@ -316,7 +316,7 @@ class OutputFormatter:
             show_header=False,
             box=None,
         )
-        table.add_column("Field", style="cyan", width=25)
+        table.add_column("Field", style="cyan", width=44)
         table.add_column("Value", style="white")
 
         for i, controller in enumerate(controller_statuses):
@@ -383,47 +383,40 @@ class OutputFormatter:
                         f"[{status_color}]{resource_status}[/{status_color}]",
                     )
 
-                    # Show hosted cluster conditions if available
+                    # Show all hosted cluster conditions
                     if resource_type == "hostedcluster":
                         hc_status = resource_data.get("resource_status", {})
                         hc_conditions = hc_status.get("conditions", [])
 
-                        # Show a few key conditions
-                        key_conditions = [
-                            "Available",
-                            "Progressing",
-                            "Degraded",
-                            "ClusterVersionSucceeding",
-                        ]
+                        # Display all conditions with type and status
                         for condition in hc_conditions:
-                            condition_type = condition.get("type", "")
-                            if condition_type in key_conditions:
-                                condition_status = condition.get("status", "Unknown")
-                                condition_reason = condition.get("reason", "")
+                            condition_type = condition.get("type", "Unknown")
+                            condition_status = condition.get("status", "Unknown")
 
+                            # Color code based on status and condition type
+                            # For "negative" conditions (Degraded, Progressing),
+                            # True is bad, False is good
+                            negative_conditions = ["Degraded", "Progressing"]
+                            if condition_type in negative_conditions:
                                 status_color = {
-                                    "True": (
-                                        "green"
-                                        if condition_type != "Degraded"
-                                        else "red"
-                                    ),
-                                    "False": (
-                                        "red"
-                                        if condition_type
-                                        in ["Available", "ClusterVersionSucceeding"]
-                                        else "green"
-                                    ),
+                                    "True": "red",
+                                    "False": "green",
+                                    "Unknown": "yellow",
+                                }.get(condition_status, "white")
+                            else:
+                                # For "positive" conditions, True is good, False is bad
+                                status_color = {
+                                    "True": "green",
+                                    "False": "red",
                                     "Unknown": "yellow",
                                 }.get(condition_status, "white")
 
-                                display_text = (
-                                    f"[{status_color}]{condition_status}"
-                                    f"[/{status_color}]"
-                                )
-                                if condition_reason:
-                                    display_text += f" ({condition_reason})"
+                            display_text = (
+                                f"[{status_color}]{condition_status}"
+                                f"[/{status_color}]"
+                            )
 
-                                table.add_row(f"      {condition_type}", display_text)
+                            table.add_row(f"      {condition_type}", display_text)
 
         self.console.print("\n")  # Add some spacing
         self.console.print(table)
