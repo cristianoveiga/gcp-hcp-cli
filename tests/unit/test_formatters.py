@@ -181,14 +181,32 @@ class TestControllerStatusDisplay:
                                         {"type": "Available", "status": "True"},
                                         {"type": "Progressing", "status": "False"},
                                         {"type": "Degraded", "status": "False"},
-                                        {"type": "ClusterVersionSucceeding", "status": "True"},
+                                        {
+                                            "type": "ClusterVersionSucceeding",
+                                            "status": "True",
+                                        },
                                         # These conditions were previously filtered out
-                                        {"type": "GCPEndpointAvailable", "status": "True"},
-                                        {"type": "GCPServiceAttachmentAvailable", "status": "True"},
-                                        {"type": "ValidGCPWorkloadIdentity", "status": "True"},
+                                        {
+                                            "type": "GCPEndpointAvailable",
+                                            "status": "True",
+                                        },
+                                        {
+                                            "type": "GCPServiceAttachmentAvailable",
+                                            "status": "True",
+                                        },
+                                        {
+                                            "type": "ValidGCPWorkloadIdentity",
+                                            "status": "True",
+                                        },
                                         {"type": "EtcdAvailable", "status": "True"},
-                                        {"type": "InfrastructureReady", "status": "True"},
-                                        {"type": "ReconciliationSucceeded", "status": "True"},
+                                        {
+                                            "type": "InfrastructureReady",
+                                            "status": "True",
+                                        },
+                                        {
+                                            "type": "ReconciliationSucceeded",
+                                            "status": "True",
+                                        },
                                     ]
                                 },
                             }
@@ -232,7 +250,10 @@ class TestControllerStatusDisplay:
                                     "conditions": [
                                         {"type": "Available", "status": "True"},
                                         {"type": "Degraded", "status": "False"},
-                                        {"type": "ExternalDNSReachable", "status": "Unknown"},
+                                        {
+                                            "type": "ExternalDNSReachable",
+                                            "status": "Unknown",
+                                        },
                                     ]
                                 },
                             }
