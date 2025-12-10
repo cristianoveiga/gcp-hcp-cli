@@ -344,6 +344,7 @@ def destroy_infra(
             destroy_iam_gcp,
             destroy_infra_gcp,
             HypershiftError,
+            SERVICE_ACCOUNTS,
         )
 
         # Use project from command line or config
@@ -368,9 +369,9 @@ def destroy_infra(
             cli_context.console.print()
             cli_context.console.print("This will permanently delete:")
             cli_context.console.print("  • Workload Identity Pool and Provider")
-            cli_context.console.print(
-                "  • Service Accounts (control plane and node pool)"
-            )
+            cli_context.console.print("  • Service Accounts:")
+            for sa_desc in SERVICE_ACCOUNTS.values():
+                cli_context.console.print(f"    - {sa_desc}")
             cli_context.console.print("  • VPC Network, Subnet, Router, and NAT")
             cli_context.console.print()
 

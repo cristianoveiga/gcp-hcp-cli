@@ -21,6 +21,40 @@ class HypershiftError(Exception):
 # Maximum length for infrastructure ID
 MAX_INFRA_ID_LENGTH = 15
 
+# Service accounts created by hypershift IAM setup
+# Key: internal name used in hypershift output
+# Value: human-readable description
+SERVICE_ACCOUNTS = {
+    "ctrlplane-op": "Control Plane Operator",
+    "nodepool-mgmt": "Node Pool Management",
+}
+
+# Error message for missing hypershift CLI
+HYPERSHIFT_NOT_FOUND_ERROR = (
+    "hypershift CLI not found. Please install it or configure the path:\n"
+    "  1. Install: https://hypershift.pages.dev/getting-started/\n"
+    "  2. Or set: gcphcp config set hypershift_binary /path/to/hypershift\n"
+    "  3. Or set: export HYPERSHIFT_BINARY=/path/to/hypershift"
+)
+
+
+def require_hypershift_binary(config=None) -> str:
+    """Get the hypershift binary path or raise an error if not found.
+
+    Args:
+        config: Optional Config object to check for hypershift_binary setting
+
+    Returns:
+        Path to hypershift binary
+
+    Raises:
+        HypershiftError: If hypershift CLI is not found
+    """
+    hypershift_bin = get_hypershift_binary(config)
+    if not hypershift_bin:
+        raise HypershiftError(HYPERSHIFT_NOT_FOUND_ERROR)
+    return hypershift_bin
+
 
 def validate_infra_id_length(infra_id: str) -> None:
     """Validate that the infrastructure ID length is within platform limits.
@@ -109,15 +143,7 @@ def create_iam_gcp(
         console.print(f"  Project ID: {project_id}")
         console.print(f"  OIDC JWKS File: {oidc_jwks_file}")
 
-    # Get hypershift binary path
-    hypershift_bin = get_hypershift_binary(config)
-    if not hypershift_bin:
-        raise HypershiftError(
-            "hypershift CLI not found. Please install it or configure the path:\n"
-            "  1. Install: https://hypershift-docs.netlify.app/getting-started/\n"
-            "  2. Or set: gcphcp config set hypershift_binary /path/to/hypershift\n"
-            "  3. Or set: export HYPERSHIFT_BINARY=/path/to/hypershift"
-        )
+    hypershift_bin = require_hypershift_binary(config)
 
     # Build the command
     cmd = [
@@ -201,10 +227,9 @@ def validate_iam_config(iam_config: Dict[str, Any]) -> bool:
         return False
 
     service_accounts = iam_config.get("serviceAccounts", {})
-    if "ctrlplane-op" not in service_accounts:
-        return False
-    if "nodepool-mgmt" not in service_accounts:
-        return False
+    for sa_key in SERVICE_ACCOUNTS:
+        if sa_key not in service_accounts:
+            return False
 
     return True
 
@@ -263,15 +288,7 @@ def create_infra_gcp(
         console.print(f"  Region: {region}")
         console.print(f"  VPC CIDR: {vpc_cidr}")
 
-    # Get hypershift binary path
-    hypershift_bin = get_hypershift_binary(config)
-    if not hypershift_bin:
-        raise HypershiftError(
-            "hypershift CLI not found. Please install it or configure the path:\n"
-            "  1. Install: https://hypershift-docs.netlify.app/getting-started/\n"
-            "  2. Or set: gcphcp config set hypershift_binary /path/to/hypershift\n"
-            "  3. Or set: export HYPERSHIFT_BINARY=/path/to/hypershift"
-        )
+    hypershift_bin = require_hypershift_binary(config)
 
     # Build the command
     cmd = [
@@ -383,15 +400,7 @@ def destroy_iam_gcp(
         console.print(f"  Infrastructure ID: {infra_id}")
         console.print(f"  Project ID: {project_id}")
 
-    # Get hypershift binary path
-    hypershift_bin = get_hypershift_binary(config)
-    if not hypershift_bin:
-        raise HypershiftError(
-            "hypershift CLI not found. Please install it or configure the path:\n"
-            "  1. Install: https://hypershift-docs.netlify.app/getting-started/\n"
-            "  2. Or set: gcphcp config set hypershift_binary /path/to/hypershift\n"
-            "  3. Or set: export HYPERSHIFT_BINARY=/path/to/hypershift"
-        )
+    hypershift_bin = require_hypershift_binary(config)
 
     # Build the command
     cmd = [
@@ -459,15 +468,7 @@ def destroy_infra_gcp(
         console.print(f"  Project ID: {project_id}")
         console.print(f"  Region: {region}")
 
-    # Get hypershift binary path
-    hypershift_bin = get_hypershift_binary(config)
-    if not hypershift_bin:
-        raise HypershiftError(
-            "hypershift CLI not found. Please install it or configure the path:\n"
-            "  1. Install: https://hypershift-docs.netlify.app/getting-started/\n"
-            "  2. Or set: gcphcp config set hypershift_binary /path/to/hypershift\n"
-            "  3. Or set: export HYPERSHIFT_BINARY=/path/to/hypershift"
-        )
+    hypershift_bin = require_hypershift_binary(config)
 
     # Build the command
     cmd = [
