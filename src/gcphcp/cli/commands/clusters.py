@@ -807,7 +807,10 @@ def cluster_status(
 @click.option(
     "--replicas",
     type=int,
-    help="Number of compute nodes for default nodepool (if not specified, no nodepool created)",
+    help=(
+        "Number of compute nodes for default nodepool "
+        "(if not specified, no nodepool created)"
+    ),
 )
 @click.option(
     "--node-machine-type",
@@ -1118,22 +1121,25 @@ def create_cluster(
                     },
                 }
 
-                nodepool = api_client.post("/api/v1/nodepools", json_data=nodepool_data)
+                _ = api_client.post("/api/v1/nodepools", json_data=nodepool_data)
 
                 if not cli_context.quiet:
                     cli_context.console.print(
-                        f"[green]✓[/green] NodePool '{nodepool_name}' created with {replicas} replica(s)"
+                        f"[green]✓[/green] NodePool '{nodepool_name}' "
+                        f"created with {replicas} replica(s)"
                     )
 
             except APIError as e:
                 # Don't fail cluster creation if nodepool creation fails
                 if not cli_context.quiet:
                     cli_context.console.print(
-                        f"[yellow]Warning: Cluster created but nodepool creation failed: {e}[/yellow]"
+                        f"[yellow]Warning: Cluster created but "
+                        f"nodepool creation failed: {e}[/yellow]"
                     )
                     cli_context.console.print(
                         f"[dim]Create manually with:[/dim]\n"
-                        f"  gcphcp nodepools create {nodepool_name} --cluster {cluster_id} --replicas {replicas}"
+                        f"  gcphcp nodepools create {nodepool_name} "
+                        f"--cluster {cluster_id} --replicas {replicas}"
                     )
 
         if not cli_context.quiet:

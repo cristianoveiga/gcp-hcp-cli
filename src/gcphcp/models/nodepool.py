@@ -98,7 +98,9 @@ class NodePoolSpec(BaseModel):
     )
     diskSize: Optional[int] = Field(
         default=None,
-        description="Boot disk size in GB (deprecated - use platform.gcp.rootVolume.size)",
+        description=(
+            "Boot disk size in GB " "(deprecated - use platform.gcp.rootVolume.size)"
+        ),
     )
     nodeCount: Optional[int] = Field(
         default=None, description="Desired number of nodes (deprecated - use replicas)"

@@ -75,7 +75,8 @@ def resolve_nodepool_identifier(
         # No matches found
         raise click.ClickException(
             f"No nodepool found with identifier '{identifier}'. "
-            "Use 'gcphcp nodepools list --cluster <cluster-id>' to see available nodepools."
+            "Use 'gcphcp nodepools list --cluster <cluster-id>' "
+            "to see available nodepools."
         )
 
     except APIError as e:
@@ -144,7 +145,10 @@ def nodepools_group() -> None:
 @nodepools_group.command("list")
 @click.option(
     "--cluster",
-    help="Optional cluster identifier to filter nodepools (name, partial ID, or full UUID)",
+    help=(
+        "Optional cluster identifier to filter nodepools "
+        "(name, partial ID, or full UUID)"
+    ),
 )
 @click.option(
     "--limit",
@@ -397,7 +401,8 @@ def create_nodepool(
                 f"Replicas: {replicas}\n"
                 f"Machine Type: {instance_type}\n"
                 f"Disk: {disk_size}GB {disk_type}\n\n"
-                f"[dim]Use 'gcphcp nodepools status {nodepool_id[:8]}' to monitor creation[/dim]",
+                f"[dim]Use 'gcphcp nodepools status {nodepool_id[:8]}' "
+                f"to monitor creation[/dim]",
                 title="[bold green]NodePool Created[/bold green]",
                 border_style="green",
             )
@@ -451,7 +456,8 @@ def nodepool_status(
 ) -> None:
     """Show detailed information and status for a nodepool.
 
-    NODEPOOL_IDENTIFIER: NodePool partial ID (8+ chars), full UUID, or name (with --cluster).
+    NODEPOOL_IDENTIFIER: NodePool partial ID (8+ chars), full UUID, or name
+    (with --cluster).
 
     Use --detailed/-d to show all conditions, transition times, and extended
     management configuration.
@@ -461,7 +467,8 @@ def nodepool_status(
         gcphcp nodepools status abc12345
         gcphcp nodepools status abc12345 --detailed
         gcphcp nodepools status abc12345 --watch
-        gcphcp nodepools status workers --cluster my-cluster --watch --detailed
+        gcphcp nodepools status workers --cluster my-cluster \\
+            --watch --detailed
     """
     try:
         api_client = cli_context.get_api_client()
@@ -544,7 +551,8 @@ def delete_nodepool(
 ) -> None:
     """Delete a nodepool.
 
-    NODEPOOL_IDENTIFIER: NodePool partial ID (8+ chars), full UUID, or name (with --cluster).
+    NODEPOOL_IDENTIFIER: NodePool partial ID (8+ chars), full UUID, or name
+    (with --cluster).
 
     WARNING: This action cannot be undone. All nodes in the nodepool
     will be drained and deleted.
@@ -584,7 +592,8 @@ def delete_nodepool(
         # Confirm deletion unless --yes or --force
         if not (yes or force):
             cli_context.console.print(
-                f"[yellow]⚠ Warning: You are about to delete nodepool '{nodepool_name}'[/yellow]"
+                f"[yellow]⚠ Warning: You are about to delete nodepool "
+                f"'{nodepool_name}'[/yellow]"
             )
             cli_context.console.print(f"  ID: {nodepool_id}")
             cli_context.console.print(f"  Replicas: {replicas}")

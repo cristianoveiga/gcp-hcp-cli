@@ -494,7 +494,10 @@ class OutputFormatter:
                     table.add_row("", "")
                     table.add_row("[bold]Taints[/bold]", "")
                     for taint in gcp_spec.taints:
-                        taint_str = f"{taint.get('key')}={taint.get('value')}:{taint.get('effect')}"
+                        taint_str = (
+                            f"{taint.get('key')}={taint.get('value')}:"
+                            f"{taint.get('effect')}"
+                        )
                         table.add_row("  Taint", taint_str)
 
             # Generation tracking section
