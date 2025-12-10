@@ -388,10 +388,11 @@ class OutputFormatter:
                         hc_status = resource_data.get("resource_status", {})
                         hc_conditions = hc_status.get("conditions", [])
 
-                        # Display all conditions with type and status
+                        # Display all conditions with type, status, and message
                         for condition in hc_conditions:
                             condition_type = condition.get("type", "Unknown")
                             condition_status = condition.get("status", "Unknown")
+                            condition_message = condition.get("message", "")
 
                             # Color code based on status and condition type
                             # For "negative" conditions (Degraded, Progressing),
@@ -415,6 +416,11 @@ class OutputFormatter:
                                 f"[{status_color}]{condition_status}"
                                 f"[/{status_color}]"
                             )
+                            if condition_message:
+                                # Truncate long messages
+                                if len(condition_message) > 100:
+                                    condition_message = condition_message[:97] + "..."
+                                display_text += f" - {condition_message}"
 
                             table.add_row(f"      {condition_type}", display_text)
 
