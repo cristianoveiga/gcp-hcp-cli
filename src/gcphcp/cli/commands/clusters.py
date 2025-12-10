@@ -660,8 +660,7 @@ def cluster_status(
             nodepools = []
             try:
                 nodepools_response = api_client.get(
-                    "/api/v1/nodepools",
-                    params={"clusterId": cluster_id}
+                    "/api/v1/nodepools", params={"clusterId": cluster_id}
                 )
                 nodepools = nodepools_response.get("nodepools") or []
             except APIError:
@@ -683,7 +682,9 @@ def cluster_status(
                         )
 
             if cli_context.output_format == "table":
-                cli_context.formatter.print_cluster_status(cluster, cluster_id, nodepools=nodepools)
+                cli_context.formatter.print_cluster_status(
+                    cluster, cluster_id, nodepools=nodepools
+                )
 
                 # Display additional controller status in table format
                 if all and controller_status_data:
@@ -1090,7 +1091,9 @@ def create_cluster(
             try:
                 if not cli_context.quiet:
                     cli_context.console.print()
-                    cli_context.console.print("[bold cyan]Creating Default NodePool[/bold cyan]")
+                    cli_context.console.print(
+                        "[bold cyan]Creating Default NodePool[/bold cyan]"
+                    )
 
                 # Generate nodepool name
                 nodepool_name = f"{cluster_name}-nodepool-1"
@@ -1107,15 +1110,12 @@ def create_cluster(
                                 "instanceType": node_machine_type,
                                 "rootVolume": {
                                     "size": node_disk_size,
-                                    "type": node_disk_type
-                                }
-                            }
+                                    "type": node_disk_type,
+                                },
+                            },
                         },
-                        "management": {
-                            "autoRepair": True,
-                            "upgradeType": "Replace"
-                        }
-                    }
+                        "management": {"autoRepair": True, "upgradeType": "Replace"},
+                    },
                 }
 
                 nodepool = api_client.post("/api/v1/nodepools", json_data=nodepool_data)

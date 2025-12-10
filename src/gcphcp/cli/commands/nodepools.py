@@ -129,11 +129,9 @@ def parse_taints(taints_tuple: tuple) -> list:
                 f"Invalid taint format '{taint}'. Expected 'key=value:effect'."
             )
         key, value = key_value.split("=", 1)
-        taints.append({
-            "key": key.strip(),
-            "value": value.strip(),
-            "effect": effect.strip()
-        })
+        taints.append(
+            {"key": key.strip(), "value": value.strip(), "effect": effect.strip()}
+        )
     return taints
 
 
@@ -146,19 +144,17 @@ def nodepools_group() -> None:
 @nodepools_group.command("list")
 @click.option(
     "--cluster",
-    help="Optional cluster identifier to filter nodepools (name, partial ID, or full UUID)"
+    help="Optional cluster identifier to filter nodepools (name, partial ID, or full UUID)",
 )
 @click.option(
     "--limit",
     type=int,
     default=50,
-    help="Maximum number of nodepools to list (default: 50)"
+    help="Maximum number of nodepools to list (default: 50)",
 )
 @click.pass_obj
 def list_nodepools(
-    cli_context: "CLIContext",
-    cluster: Optional[str],
-    limit: int
+    cli_context: "CLIContext", cluster: Optional[str], limit: int
 ) -> None:
     """List nodepools across all clusters or for a specific cluster.
 
@@ -201,9 +197,7 @@ def list_nodepools(
                         f"--cluster {cluster} --replicas <N>"
                     )
                 else:
-                    cli_context.console.print(
-                        "[yellow]No nodepools found[/yellow]"
-                    )
+                    cli_context.console.print("[yellow]No nodepools found[/yellow]")
                     cli_context.console.print(
                         "[dim]Create one with:[/dim] gcphcp nodepools create <name> "
                         "--cluster <cluster-id> --replicas <N>"
@@ -245,7 +239,11 @@ def list_nodepools(
             short_id = nodepool.id[:8] if len(nodepool.id) > 8 else nodepool.id
 
             # Cluster ID (show first 8 chars)
-            cluster_short_id = nodepool.clusterId[:8] if len(nodepool.clusterId) > 8 else nodepool.clusterId
+            cluster_short_id = (
+                nodepool.clusterId[:8]
+                if len(nodepool.clusterId) > 8
+                else nodepool.clusterId
+            )
 
             # Build row based on whether cluster filter is applied
             if cluster:
@@ -283,46 +281,40 @@ def list_nodepools(
 @click.option(
     "--cluster",
     required=True,
-    help="Cluster identifier (name, partial ID, or full UUID)"
+    help="Cluster identifier (name, partial ID, or full UUID)",
 )
 @click.option(
-    "--replicas",
-    type=int,
-    required=True,
-    help="Number of compute nodes to create"
+    "--replicas", type=int, required=True, help="Number of compute nodes to create"
 )
 @click.option(
     "--instance-type",
     "--machine-type",
     default="n1-standard-4",
-    help="GCP machine type (default: n1-standard-4)"
+    help="GCP machine type (default: n1-standard-4)",
 )
 @click.option(
-    "--disk-size",
-    type=int,
-    default=128,
-    help="Boot disk size in GB (default: 128)"
+    "--disk-size", type=int, default=128, help="Boot disk size in GB (default: 128)"
 )
 @click.option(
     "--disk-type",
     type=click.Choice(["pd-standard", "pd-ssd", "pd-balanced"], case_sensitive=False),
     default="pd-standard",
-    help="Boot disk type (default: pd-standard)"
+    help="Boot disk type (default: pd-standard)",
 )
 @click.option(
     "--auto-repair/--no-auto-repair",
     default=True,
-    help="Enable auto-repair (default: enabled)"
+    help="Enable auto-repair (default: enabled)",
 )
 @click.option(
     "--labels",
     multiple=True,
-    help="Node labels in key=value format (can be specified multiple times)"
+    help="Node labels in key=value format (can be specified multiple times)",
 )
 @click.option(
     "--taints",
     multiple=True,
-    help="Node taints in key=value:effect format (can be specified multiple times)"
+    help="Node taints in key=value:effect format (can be specified multiple times)",
 )
 @click.pass_obj
 def create_nodepool(
@@ -375,17 +367,11 @@ def create_nodepool(
                     "type": "GCP",
                     "gcp": {
                         "instanceType": instance_type,
-                        "rootVolume": {
-                            "size": disk_size,
-                            "type": disk_type
-                        }
-                    }
+                        "rootVolume": {"size": disk_size, "type": disk_type},
+                    },
                 },
-                "management": {
-                    "autoRepair": auto_repair,
-                    "upgradeType": "Replace"
-                }
-            }
+                "management": {"autoRepair": auto_repair, "upgradeType": "Replace"},
+            },
         }
 
         # Add labels and taints if provided
@@ -395,7 +381,9 @@ def create_nodepool(
             nodepool_data["spec"]["platform"]["gcp"]["taints"] = parsed_taints
 
         if not cli_context.quiet:
-            cli_context.console.print(f"[bold cyan]Creating NodePool '{nodepool_name}'...[/bold cyan]")
+            cli_context.console.print(
+                f"[bold cyan]Creating NodePool '{nodepool_name}'...[/bold cyan]"
+            )
 
         # Create nodepool
         response = api_client.post("/api/v1/nodepools", json_data=nodepool_data)
@@ -411,7 +399,7 @@ def create_nodepool(
                 f"Disk: {disk_size}GB {disk_type}\n\n"
                 f"[dim]Use 'gcphcp nodepools status {nodepool_id[:8]}' to monitor creation[/dim]",
                 title="[bold green]NodePool Created[/bold green]",
-                border_style="green"
+                border_style="green",
             )
             cli_context.console.print(panel)
         else:
@@ -435,25 +423,22 @@ def create_nodepool(
 @click.argument("nodepool_identifier")
 @click.option(
     "--cluster",
-    help="Cluster identifier to narrow nodepool search (enables name-based lookup)"
+    help="Cluster identifier to narrow nodepool search (enables name-based lookup)",
 )
 @click.option(
     "--detailed",
     "-d",
     is_flag=True,
-    help="Show detailed status including all conditions and management configuration"
+    help="Show detailed status including all conditions and management configuration",
 )
 @click.option(
-    "--watch",
-    "-w",
-    is_flag=True,
-    help="Watch for status changes in real-time"
+    "--watch", "-w", is_flag=True, help="Watch for status changes in real-time"
 )
 @click.option(
     "--interval",
     default=5,
     type=int,
-    help="Polling interval in seconds for watch mode (default: 5)"
+    help="Polling interval in seconds for watch mode (default: 5)",
 )
 @click.pass_obj
 def nodepool_status(
@@ -486,6 +471,7 @@ def nodepool_status(
             cluster_id = None
             if cluster:
                 from .clusters import resolve_cluster_identifier
+
                 cluster_id = resolve_cluster_identifier(api_client, cluster)
 
             # Resolve nodepool identifier (with optional cluster scope)
@@ -503,14 +489,15 @@ def nodepool_status(
                 )
             else:
                 # For JSON/YAML, always include full data
-                cli_context.formatter.print_data({
-                    "nodepool_id": nodepool_id,
-                    "nodepool": nodepool_data
-                })
+                cli_context.formatter.print_data(
+                    {"nodepool_id": nodepool_id, "nodepool": nodepool_data}
+                )
 
         if watch:
             if cli_context.output_format != "table":
-                raise click.ClickException("Watch mode is only supported in table format")
+                raise click.ClickException(
+                    "Watch mode is only supported in table format"
+                )
 
             try:
                 while True:
@@ -539,19 +526,14 @@ def nodepool_status(
 @click.argument("nodepool_identifier")
 @click.option(
     "--cluster",
-    help="Cluster identifier to narrow nodepool search (enables name-based lookup)"
+    help="Cluster identifier to narrow nodepool search (enables name-based lookup)",
 )
 @click.option(
     "--force",
     is_flag=True,
-    help="Skip confirmation and delete nodepool with any active nodes"
+    help="Skip confirmation and delete nodepool with any active nodes",
 )
-@click.option(
-    "--yes",
-    "-y",
-    is_flag=True,
-    help="Skip confirmation prompt"
-)
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 @click.pass_obj
 def delete_nodepool(
     cli_context: "CLIContext",
@@ -583,6 +565,7 @@ def delete_nodepool(
         cluster_id = None
         if cluster:
             from .clusters import resolve_cluster_identifier
+
             cluster_id = resolve_cluster_identifier(api_client, cluster)
 
         # Resolve nodepool identifier (with optional cluster scope)
@@ -619,7 +602,9 @@ def delete_nodepool(
                 return
 
         if not cli_context.quiet:
-            cli_context.console.print(f"[bold cyan]Deleting nodepool '{nodepool_name}'...[/bold cyan]")
+            cli_context.console.print(
+                f"[bold cyan]Deleting nodepool '{nodepool_name}'...[/bold cyan]"
+            )
 
         # Delete nodepool with force parameter
         # Always include force=true as API requires it for actual deletion

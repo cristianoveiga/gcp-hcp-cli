@@ -159,7 +159,10 @@ class OutputFormatter:
         self.console.print(table)
 
     def print_cluster_status(
-        self, cluster_data: Dict[str, Any], cluster_id: str, nodepools: Optional[List[Dict[str, Any]]] = None
+        self,
+        cluster_data: Dict[str, Any],
+        cluster_id: str,
+        nodepools: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """Print formatted cluster status information.
 
@@ -325,9 +328,7 @@ class OutputFormatter:
 
         # Create nodepools table
         table = Table(
-            title="[bold]NodePools[/bold]",
-            show_header=True,
-            header_style="bold blue"
+            title="[bold]NodePools[/bold]", show_header=True, header_style="bold blue"
         )
 
         table.add_column("NAME", style="cyan")
@@ -369,10 +370,7 @@ class OutputFormatter:
         from ..models.nodepool import NodePool
 
         if self.format_type != "table":
-            self.print_data({
-                "nodepool_id": nodepool_id,
-                "nodepool": nodepool_data
-            })
+            self.print_data({"nodepool_id": nodepool_id, "nodepool": nodepool_data})
             return
 
         nodepool = NodePool.from_api_response(nodepool_data)
@@ -415,9 +413,13 @@ class OutputFormatter:
                 table.add_row("  Disk", f"{disk_size} GB ({disk_type})")
 
             if nodepool.spec.management:
-                table.add_row("  Auto Repair", str(nodepool.spec.management.autoRepair or False))
+                table.add_row(
+                    "  Auto Repair", str(nodepool.spec.management.autoRepair or False)
+                )
                 if nodepool.spec.management.upgradeType:
-                    table.add_row("  Upgrade Type", nodepool.spec.management.upgradeType)
+                    table.add_row(
+                        "  Upgrade Type", nodepool.spec.management.upgradeType
+                    )
 
         # Status section
         if nodepool.status:
@@ -466,12 +468,16 @@ class OutputFormatter:
                     # Only show transition times and reasons in detailed mode
                     if detailed:
                         if condition.reason:
-                            table.add_row("    Reason", f"[dim]{condition.reason}[/dim]")
+                            table.add_row(
+                                "    Reason", f"[dim]{condition.reason}[/dim]"
+                            )
                         if condition.lastTransitionTime:
                             transition_time = self.format_datetime(
                                 str(condition.lastTransitionTime)
                             )
-                            table.add_row("    Last Transition", f"[dim]{transition_time}[/dim]")
+                            table.add_row(
+                                "    Last Transition", f"[dim]{transition_time}[/dim]"
+                            )
 
         # Detailed mode: Show labels, taints, and generation tracking
         if detailed and nodepool.spec:
