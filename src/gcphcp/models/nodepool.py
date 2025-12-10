@@ -80,10 +80,10 @@ class NodePoolPlatform(BaseModel):
 class NodePoolSpec(BaseModel):
     """Represents nodepool specification."""
 
-    clusterId: str = Field(description="Parent cluster ID")
-    replicas: Optional[int] = Field(
-        default=None, description="Desired number of nodes"
+    clusterId: Optional[str] = Field(
+        default=None, description="Parent cluster ID", alias="cluster_id"
     )
+    replicas: Optional[int] = Field(default=None, description="Desired number of nodes")
     platform: Optional[NodePoolPlatform] = Field(
         default=None, description="Platform configuration"
     )
@@ -93,10 +93,12 @@ class NodePoolSpec(BaseModel):
 
     # Backward compatibility - keep old fields
     machineType: Optional[str] = Field(
-        default=None, description="GCP machine type (deprecated - use platform.gcp.instanceType)"
+        default=None,
+        description="GCP machine type (deprecated - use platform.gcp.instanceType)",
     )
     diskSize: Optional[int] = Field(
-        default=None, description="Boot disk size in GB (deprecated - use platform.gcp.rootVolume.size)"
+        default=None,
+        description="Boot disk size in GB (deprecated - use platform.gcp.rootVolume.size)",
     )
     nodeCount: Optional[int] = Field(
         default=None, description="Desired number of nodes (deprecated - use replicas)"
@@ -136,9 +138,12 @@ class NodePoolSpec(BaseModel):
         Returns:
             Disk size from platform.gcp.rootVolume.size or diskSize field
         """
-        if (self.platform and self.platform.gcp and
-            self.platform.gcp.rootVolume and
-            self.platform.gcp.rootVolume.size):
+        if (
+            self.platform
+            and self.platform.gcp
+            and self.platform.gcp.rootVolume
+            and self.platform.gcp.rootVolume.size
+        ):
             return self.platform.gcp.rootVolume.size
         return self.diskSize
 
@@ -148,11 +153,19 @@ class NodePoolSpec(BaseModel):
         Returns:
             Disk type from platform.gcp.rootVolume.type
         """
-        if (self.platform and self.platform.gcp and
-            self.platform.gcp.rootVolume and
-            self.platform.gcp.rootVolume.type):
+        if (
+            self.platform
+            and self.platform.gcp
+            and self.platform.gcp.rootVolume
+            and self.platform.gcp.rootVolume.type
+        ):
             return self.platform.gcp.rootVolume.type
         return None
+
+    class Config:
+        """Pydantic configuration."""
+
+        populate_by_name = True
 
 
 class NodePool(BaseModel):
@@ -160,7 +173,7 @@ class NodePool(BaseModel):
 
     id: str = Field(description="Unique nodepool identifier")
     name: str = Field(description="NodePool name")
-    clusterId: str = Field(description="Parent cluster ID")
+    clusterId: str = Field(description="Parent cluster ID", alias="cluster_id")
     createdBy: Optional[str] = Field(
         default=None, description="User who created the nodepool"
     )
@@ -182,6 +195,7 @@ class NodePool(BaseModel):
     class Config:
         """Pydantic configuration."""
 
+        populate_by_name = True
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None,
         }
