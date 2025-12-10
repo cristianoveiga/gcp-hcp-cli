@@ -146,8 +146,7 @@ def nodepools_group() -> None:
 @nodepools_group.command("list")
 @click.option(
     "--cluster",
-    required=True,
-    help="Cluster identifier (name, partial ID, or full UUID)"
+    help="Optional cluster identifier to filter nodepools (name, partial ID, or full UUID)"
 )
 @click.option(
     "--limit",
@@ -158,16 +157,17 @@ def nodepools_group() -> None:
 @click.pass_obj
 def list_nodepools(
     cli_context: "CLIContext",
-    cluster: str,
+    cluster: Optional[str],
     limit: int
 ) -> None:
-    """List nodepools for a cluster.
+    """List nodepools across all clusters or for a specific cluster.
 
     Shows a table of nodepools with their basic information including
     name, status, node counts, and creation date.
 
     \b
     Examples:
+        gcphcp nodepools list
         gcphcp nodepools list --cluster demo08
         gcphcp nodepools list --cluster 3c7f2227
         gcphcp nodepools list --cluster my-cluster --limit 100
@@ -177,26 +177,37 @@ def list_nodepools(
     try:
         api_client = cli_context.get_api_client()
 
-        # Resolve cluster identifier to UUID
-        cluster_id = resolve_cluster_identifier(api_client, cluster)
+        # Build query parameters
+        params = {"limit": limit}
+
+        # Resolve cluster identifier to UUID if provided
+        if cluster:
+            cluster_id = resolve_cluster_identifier(api_client, cluster)
+            params["clusterId"] = cluster_id
 
         # Fetch nodepools
-        response = api_client.get(
-            "/api/v1/nodepools",
-            params={"clusterId": cluster_id, "limit": limit}
-        )
+        response = api_client.get("/api/v1/nodepools", params=params)
         nodepools_data = response.get("nodepools") or []
 
         # Handle empty list
         if not nodepools_data:
             if not cli_context.quiet:
-                cli_context.console.print(
-                    f"[yellow]No nodepools found for cluster {cluster}[/yellow]"
-                )
-                cli_context.console.print(
-                    f"[dim]Create one with:[/dim] gcphcp nodepools create <name> "
-                    f"--cluster {cluster} --replicas <N>"
-                )
+                if cluster:
+                    cli_context.console.print(
+                        f"[yellow]No nodepools found for cluster {cluster}[/yellow]"
+                    )
+                    cli_context.console.print(
+                        f"[dim]Create one with:[/dim] gcphcp nodepools create <name> "
+                        f"--cluster {cluster} --replicas <N>"
+                    )
+                else:
+                    cli_context.console.print(
+                        "[yellow]No nodepools found[/yellow]"
+                    )
+                    cli_context.console.print(
+                        "[dim]Create one with:[/dim] gcphcp nodepools create <name> "
+                        "--cluster <cluster-id> --replicas <N>"
+                    )
             return
 
         # Handle non-table formats
@@ -204,9 +215,15 @@ def list_nodepools(
             cli_context.formatter.print_data({"nodepools": nodepools_data})
             return
 
-        # Create table
-        table = Table(title=f"NodePools for cluster {cluster}", show_header=True)
+        # Create table with appropriate title
+        table_title = f"NodePools for cluster {cluster}" if cluster else "All NodePools"
+        table = Table(title=table_title, show_header=True)
         table.add_column("NAME", style="cyan")
+
+        # Add CLUSTER column when listing all nodepools
+        if not cluster:
+            table.add_column("CLUSTER", style="blue")
+
         table.add_column("ID", style="dim")
         table.add_column("STATUS", style="white")
         table.add_column("NODES", style="white")
@@ -227,13 +244,27 @@ def list_nodepools(
             # ID (show first 8 chars)
             short_id = nodepool.id[:8] if len(nodepool.id) > 8 else nodepool.id
 
-            table.add_row(
-                nodepool.name,
-                short_id,
-                f"[{status_color}]{status}[/{status_color}]",
-                nodepool.get_node_info(),
-                nodepool.get_age(),
-            )
+            # Cluster ID (show first 8 chars)
+            cluster_short_id = nodepool.clusterId[:8] if len(nodepool.clusterId) > 8 else nodepool.clusterId
+
+            # Build row based on whether cluster filter is applied
+            if cluster:
+                table.add_row(
+                    nodepool.name,
+                    short_id,
+                    f"[{status_color}]{status}[/{status_color}]",
+                    nodepool.get_node_info(),
+                    nodepool.get_age(),
+                )
+            else:
+                table.add_row(
+                    nodepool.name,
+                    cluster_short_id,
+                    short_id,
+                    f"[{status_color}]{status}[/{status_color}]",
+                    nodepool.get_node_info(),
+                    nodepool.get_age(),
+                )
 
         cli_context.console.print(table)
 
