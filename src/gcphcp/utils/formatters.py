@@ -159,13 +159,17 @@ class OutputFormatter:
         self.console.print(table)
 
     def print_cluster_status(
-        self, cluster_data: Dict[str, Any], cluster_id: str
+        self,
+        cluster_data: Dict[str, Any],
+        cluster_id: str,
+        nodepools: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """Print formatted cluster status information.
 
         Args:
             cluster_data: Full cluster data including status
             cluster_id: Cluster identifier
+            nodepools: Optional list of nodepools for this cluster
         """
         if self.format_type != "table":
             # For non-table formats, just show the status section
@@ -290,6 +294,334 @@ class OutputFormatter:
                 gcp_info = platform["gcp"]
                 table.add_row("  GCP Project", gcp_info.get("projectID", "Unknown"))
                 table.add_row("  GCP Region", gcp_info.get("region", "Unknown"))
+
+        self.console.print(table)
+
+        # Print nodepools section if provided
+        if nodepools is not None:
+            self.print_nodepools_section(nodepools)
+
+    def print_nodepools_section(
+        self, nodepools: List[Dict[str, Any]], show_empty: bool = True
+    ) -> None:
+        """Print nodepools section for cluster status.
+
+        Args:
+            nodepools: List of nodepool dictionaries
+            show_empty: Whether to show section if no nodepools exist
+        """
+        from ..models.nodepool import NodePool
+
+        if self.format_type != "table":
+            return  # Non-table formats handle this differently
+
+        if not nodepools and not show_empty:
+            return
+
+        # Create spacing
+        self.console.print()
+
+        if not nodepools:
+            self.console.print("[bold]NodePools[/bold]")
+            self.console.print("[dim]  No nodepools found for this cluster[/dim]")
+            return
+
+        # Create nodepools table matching cluster status style
+        table = Table(show_header=False, box=None)
+        table.add_column("Field", style="cyan", width=20)
+        table.add_column("Value", style="white")
+
+        table.add_row("[bold]NodePools[/bold]", "")
+
+        for i, np_data in enumerate(nodepools):
+            nodepool = NodePool.from_api_response(np_data)
+
+            # Add spacing between nodepools
+            if i > 0:
+                table.add_row("", "")
+
+            # NodePool name
+            table.add_row(f"  {nodepool.name}", "")
+
+            # Get Available and Ready conditions
+            available_status = "Unknown"
+            ready_status = "Unknown"
+            if nodepool.status and nodepool.status.conditions:
+                for cond in nodepool.status.conditions:
+                    if cond.type == "Available":
+                        available_status = cond.status
+                    elif cond.type == "Ready":
+                        ready_status = cond.status
+
+            # Color code the conditions
+            available_color = {
+                "True": "green",
+                "False": "red",
+                "Unknown": "yellow",
+            }.get(available_status, "white")
+
+            ready_color = {
+                "True": "green",
+                "False": "red",
+                "Unknown": "yellow",
+            }.get(ready_status, "white")
+
+            # Add status rows
+            table.add_row(
+                "    Available",
+                f"[{available_color}]{available_status}[/{available_color}]",
+            )
+            table.add_row(
+                "    Ready",
+                f"[{ready_color}]{ready_status}[/{ready_color}]",
+            )
+            table.add_row("    Nodes", nodepool.get_node_info())
+            table.add_row("    Age", nodepool.get_age())
+
+        self.console.print(table)
+
+    def print_nodepool_status(
+        self, nodepool_data: Dict[str, Any], nodepool_id: str
+    ) -> None:
+        """Print formatted nodepool status information.
+
+        Args:
+            nodepool_data: Full nodepool data including status
+            nodepool_id: NodePool identifier
+        """
+        from ..models.nodepool import NodePool
+
+        if self.format_type != "table":
+            self.print_data({"nodepool_id": nodepool_id, "nodepool": nodepool_data})
+            return
+
+        nodepool = NodePool.from_api_response(nodepool_data)
+
+        # Create status table (match cluster status style)
+        table = Table(
+            title=f"Status: {nodepool.name}",
+            show_header=False,
+            box=None,
+        )
+        table.add_column("Field", style="cyan", width=20)
+        table.add_column("Value", style="white")
+
+        # Basic info
+        table.add_row("NodePool ID", nodepool_id)
+        table.add_row("NodePool Name", nodepool.name)
+        table.add_row("Cluster ID", nodepool.clusterId)
+        if nodepool.createdBy:
+            table.add_row("Created By", nodepool.createdBy)
+        if nodepool.createdAt:
+            table.add_row("Created At", self.format_datetime(str(nodepool.createdAt)))
+
+        # Spec section
+        if nodepool.spec:
+            table.add_row("", "")
+            table.add_row("[bold]Specification[/bold]", "")
+
+            replicas = nodepool.spec.get_replicas()
+            if replicas is not None:
+                table.add_row("  Desired Nodes", str(replicas))
+
+            machine_type = nodepool.spec.get_machine_type()
+            if machine_type:
+                table.add_row("  Machine Type", machine_type)
+
+            disk_size = nodepool.spec.get_disk_size()
+            if disk_size:
+                disk_type = nodepool.spec.get_disk_type() or "unknown"
+                table.add_row("  Disk", f"{disk_size} GB ({disk_type})")
+
+            if nodepool.spec.management:
+                table.add_row(
+                    "  Auto Repair", str(nodepool.spec.management.autoRepair or False)
+                )
+                if nodepool.spec.management.upgradeType:
+                    table.add_row(
+                        "  Upgrade Type", nodepool.spec.management.upgradeType
+                    )
+
+        # Current Status section (matching cluster status pattern)
+        if nodepool.status:
+            table.add_row("", "")
+            table.add_row("[bold]Current Status[/bold]", "")
+
+            # Phase with color
+            phase = nodepool.status.phase or "Unknown"
+            phase_color = {
+                "Ready": "green",
+                "Progressing": "yellow",
+                "Pending": "blue",
+                "Failed": "red",
+            }.get(phase, "white")
+            table.add_row("  Phase", f"[{phase_color}]{phase}[/{phase_color}]")
+
+            # Generation info (matching cluster style)
+            if nodepool.status.observedGeneration is not None:
+                gen_current = nodepool.status.observedGeneration
+                gen_desired = nodepool.generation or gen_current
+                if gen_current == gen_desired:
+                    gen_status = f"[green]{gen_current}[/green] (up to date)"
+                else:
+                    gen_status = (
+                        f"[yellow]{gen_current}[/yellow] (desired: {gen_desired})"
+                    )
+                table.add_row("  Generation", gen_status)
+
+            # Node counts
+            if nodepool.status.nodeCount is not None:
+                table.add_row("  Total Nodes", str(nodepool.status.nodeCount))
+            if nodepool.status.readyNodeCount is not None:
+                table.add_row("  Ready Nodes", str(nodepool.status.readyNodeCount))
+
+            # Status message
+            if nodepool.status.message:
+                table.add_row("  Message", nodepool.status.message)
+
+            # Reason
+            if nodepool.status.reason:
+                table.add_row("  Reason", nodepool.status.reason)
+
+            # Last update time
+            if nodepool.status.lastUpdateTime:
+                update_time = self.format_datetime(str(nodepool.status.lastUpdateTime))
+                table.add_row("  Last Update", update_time)
+
+            # Conditions
+            if nodepool.status.conditions:
+                table.add_row("", "")
+                table.add_row("[bold]Conditions[/bold]", "")
+
+                for condition in nodepool.status.conditions:
+                    status_color = {
+                        "True": "green",
+                        "False": "red",
+                        "Unknown": "yellow",
+                    }.get(condition.status, "white")
+
+                    status_text = f"[{status_color}]{condition.status}[/{status_color}]"
+                    if condition.message:
+                        status_text += f" - {condition.message}"
+
+                    table.add_row(f"  {condition.type}", status_text)
+
+                    # Always show transition times (matching cluster status pattern)
+                    if condition.lastTransitionTime:
+                        transition_time = self.format_datetime(
+                            str(condition.lastTransitionTime)
+                        )
+                        table.add_row(
+                            "    Last Transition", f"[dim]{transition_time}[/dim]"
+                        )
+
+        # Platform configuration (Labels and Taints) - always show if present
+        if nodepool.spec:
+            # Labels and Taints section
+            if nodepool.spec.platform and nodepool.spec.platform.gcp:
+                gcp_spec = nodepool.spec.platform.gcp
+                if gcp_spec.labels:
+                    table.add_row("", "")
+                    table.add_row("[bold]Labels[/bold]", "")
+                    for key, value in gcp_spec.labels.items():
+                        table.add_row(f"  {key}", value)
+
+                if gcp_spec.taints:
+                    table.add_row("", "")
+                    table.add_row("[bold]Taints[/bold]", "")
+                    for taint in gcp_spec.taints:
+                        taint_str = (
+                            f"{taint.get('key')}={taint.get('value')}:"
+                            f"{taint.get('effect')}"
+                        )
+                        table.add_row("  Taint", taint_str)
+
+        self.console.print(table)
+
+    def print_nodepool_controller_status(
+        self, controller_status_data: List[Dict[str, Any]], nodepool_id: str
+    ) -> None:
+        """Print detailed nodepool controller status information.
+
+        Args:
+            controller_status_data: List of controller status from
+                /nodepools/<id>/status endpoint
+            nodepool_id: NodePool identifier
+        """
+        if self.format_type != "table":
+            # For non-table formats, the data is already included in the main output
+            return
+
+        # Add spacing before controller status section
+        self.console.print()
+
+        if not controller_status_data:
+            # Show that we requested controller data but none is available
+            table = Table(show_header=False, box=None)
+            table.add_column("Field", style="cyan", width=25)
+            table.add_column("Value", style="white")
+            table.add_row(
+                "[bold]Controller Status[/bold]",
+                "[dim]No controller status available yet[/dim]",
+            )
+            self.console.print(table)
+            return
+
+        # Create controller status table
+        table = Table(show_header=False, box=None)
+        table.add_column("Field", style="cyan", width=25)
+        table.add_column("Value", style="white")
+
+        table.add_row("[bold]Controller Status[/bold]", "")
+
+        for i, controller in enumerate(controller_status_data):
+            if i > 0:
+                table.add_row("", "")  # Separator between controllers
+
+            controller_name = controller.get("controller_name", "Unknown")
+            table.add_row(f"  {controller_name}", "")
+
+            # Controller-level info
+            if controller.get("observed_generation"):
+                table.add_row(
+                    "    Observed Generation", str(controller["observed_generation"])
+                )
+
+            if controller.get("last_updated"):
+                last_updated = self.format_datetime(controller["last_updated"])
+                table.add_row("    Last Updated", last_updated)
+
+            # Controller conditions
+            conditions = controller.get("conditions", [])
+            if conditions:
+                for condition in conditions:
+                    condition_type = condition.get("type", "Unknown")
+                    condition_status = condition.get("status", "Unknown")
+                    condition_message = condition.get("message", "")
+
+                    # Color code the status
+                    status_color = {
+                        "True": "green",
+                        "False": "red",
+                        "Unknown": "yellow",
+                    }.get(condition_status, "white")
+
+                    status_text = f"[{status_color}]{condition_status}[/{status_color}]"
+                    if condition_message:
+                        # Truncate very long messages
+                        if len(condition_message) > 80:
+                            condition_message = condition_message[:77] + "..."
+                        status_text += f" - {condition_message}"
+
+                    table.add_row(f"    {condition_type}", status_text)
+
+            # Metadata if available
+            metadata = controller.get("metadata", {})
+            if metadata:
+                table.add_row("  Metadata", "")
+                for key, value in metadata.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        table.add_row(f"    {key}", str(value))
 
         self.console.print(table)
 
