@@ -366,14 +366,6 @@ class OutputFormatter:
                     ready_text += f" - {ready_condition.message}"
                 table.add_row("    Ready", ready_text)
 
-                if ready_condition.lastTransitionTime:
-                    transition_time = self.format_datetime(
-                        str(ready_condition.lastTransitionTime)
-                    )
-                    table.add_row(
-                        "      Last Transition", f"[dim]{transition_time}[/dim]"
-                    )
-
             # Display Available condition
             if available_condition:
                 available_color = {
@@ -389,14 +381,6 @@ class OutputFormatter:
                 if available_condition.message:
                     available_text += f" - {available_condition.message}"
                 table.add_row("    Available", available_text)
-
-                if available_condition.lastTransitionTime:
-                    transition_time = self.format_datetime(
-                        str(available_condition.lastTransitionTime)
-                    )
-                    table.add_row(
-                        "      Last Transition", f"[dim]{transition_time}[/dim]"
-                    )
 
             # Age
             table.add_row("    Age", nodepool.get_age())
