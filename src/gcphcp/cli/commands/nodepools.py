@@ -49,9 +49,36 @@ def resolve_nodepool_identifier(
         nodepools = response.get("nodepools") or []
 
         # Try exact name match first
+        name_matches = []
         for nodepool in nodepools:
             if nodepool.get("name") == identifier:
-                return nodepool.get("id")
+                name_matches.append(
+                    (
+                        nodepool.get("id"),
+                        nodepool.get("name"),
+                        nodepool.get("cluster_id") or nodepool.get("clusterId"),
+                    )
+                )
+
+        if len(name_matches) == 1:
+            return name_matches[0][0]  # Return the ID
+        elif len(name_matches) > 1:
+            # Multiple nodepools with same name across clusters
+            match_list = "\n".join(
+                [
+                    f"  NodePool ID: {id}\n    Cluster ID: {cluster_id}"
+                    for id, name, cluster_id in name_matches
+                ]
+            )
+            raise click.ClickException(
+                f"Multiple nodepools named '{identifier}' found across "
+                f"different clusters:\n\n{match_list}\n\n"
+                "Please specify which nodepool using one of:\n"
+                f"  - Full or partial nodepool ID: "
+                f"gcphcp nodepools <command> {name_matches[0][0][:8]}\n"
+                f"  - Nodepool name with --cluster flag: "
+                f"gcphcp nodepools <command> {identifier} --cluster <cluster-name>"
+            )
 
         # Try partial ID match (case-insensitive, minimum 8 chars)
         if len(identifier) >= 8:
