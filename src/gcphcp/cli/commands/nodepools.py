@@ -542,6 +542,106 @@ def nodepool_status(
         raise click.ClickException(str(e))
 
 
+@nodepools_group.command("scale")
+@click.argument("nodepool_identifier")
+@click.option(
+    "--cluster",
+    help="Cluster identifier to narrow nodepool search (enables name-based lookup)",
+)
+@click.option(
+    "--replicas",
+    type=int,
+    required=True,
+    help="Desired number of nodes in the nodepool",
+)
+@click.pass_obj
+def scale_nodepool(
+    cli_context: "CLIContext",
+    nodepool_identifier: str,
+    cluster: Optional[str],
+    replicas: int,
+) -> None:
+    """Scale a nodepool to the desired number of replicas.
+
+    Similar to 'kubectl scale deployment <name> --replicas=N', this command
+    updates the desired replica count for a nodepool.
+
+    NODEPOOL_IDENTIFIER: NodePool partial ID (8+ chars), full UUID, or name
+    (with --cluster).
+
+    \b
+    Examples:
+        gcphcp nodepools scale my-np-01 --replicas 5
+        gcphcp nodepools scale abc12345 --replicas 3
+        gcphcp nodepools scale workers --cluster my-cluster --replicas 10
+    """
+    try:
+        api_client = cli_context.get_api_client()
+
+        # Validate replicas
+        if replicas < 0:
+            raise click.ClickException("Replicas must be non-negative")
+
+        # Resolve cluster if provided
+        cluster_id = None
+        if cluster:
+            from .clusters import resolve_cluster_identifier
+
+            cluster_id = resolve_cluster_identifier(api_client, cluster)
+
+        # Resolve nodepool identifier (with optional cluster scope)
+        nodepool_id = resolve_nodepool_identifier(
+            api_client, nodepool_identifier, cluster_id=cluster_id
+        )
+
+        # Fetch current nodepool to get the current spec
+        nodepool_data = api_client.get(f"/api/v1/nodepools/{nodepool_id}")
+        nodepool_name = nodepool_data.get("name", nodepool_id)
+        current_spec = nodepool_data.get("spec", {})
+        current_replicas = current_spec.get("replicas") or current_spec.get(
+            "nodeCount", 0
+        )
+
+        if not cli_context.quiet:
+            cli_context.console.print(
+                f"[bold cyan]Scaling nodepool '{nodepool_name}' "
+                f"from {current_replicas} to {replicas} replicas...[/bold cyan]"
+            )
+
+        # Update only the replicas field in the spec
+        updated_spec = current_spec.copy()
+        updated_spec["replicas"] = replicas
+
+        # Send PUT request with updated spec
+        update_payload = {"spec": updated_spec}
+        api_client.put(f"/api/v1/nodepools/{nodepool_id}", json_data=update_payload)
+
+        if not cli_context.quiet:
+            cli_context.console.print(
+                f"[green]✓[/green] NodePool '{nodepool_name}' "
+                f"scaled to {replicas} replicas"
+            )
+            cli_context.console.print(
+                f"[dim]Use 'gcphcp nodepools status {nodepool_id[:8]}' "
+                f"to monitor the scaling progress[/dim]"
+            )
+        else:
+            # In quiet mode, print the nodepool ID
+            cli_context.console.print(nodepool_id)
+
+    except click.ClickException:
+        raise
+    except ValidationError as e:
+        cli_context.console.print(f"[red]Validation error: {e}[/red]")
+        raise click.ClickException(str(e))
+    except APIError as e:
+        cli_context.console.print(f"[red]API error: {e}[/red]")
+        raise click.ClickException(str(e))
+    except Exception as e:
+        cli_context.console.print(f"[red]Unexpected error: {e}[/red]")
+        raise click.ClickException(str(e))
+
+
 @nodepools_group.command("delete")
 @click.argument("nodepool_identifier")
 @click.option(
