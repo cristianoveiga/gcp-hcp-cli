@@ -157,3 +157,191 @@ class TestOutputFormatter:
         assert len(parsed) == 2
         assert parsed[0]["message"] == "First\nmessage"
         assert parsed[1]["message"] == "Second\nmessage"
+
+
+class TestControllerStatusDisplay:
+    """Tests for controller status display with HostedCluster conditions."""
+
+    def test_displays_all_hostedcluster_conditions(self):
+        """Test that all HostedCluster conditions are displayed, not just a subset."""
+        # Create test data with multiple conditions (more than the old hardcoded 4)
+        controller_data = {
+            "controller_status": [
+                {
+                    "controller_name": "test-controller",
+                    "observed_generation": 1,
+                    "last_updated": "2025-12-09T10:00:00Z",
+                    "conditions": [],
+                    "metadata": {
+                        "resources": {
+                            "hostedcluster": {
+                                "status": "Created",
+                                "resource_status": {
+                                    "conditions": [
+                                        {"type": "Available", "status": "True"},
+                                        {"type": "Progressing", "status": "False"},
+                                        {"type": "Degraded", "status": "False"},
+                                        {
+                                            "type": "ClusterVersionSucceeding",
+                                            "status": "True",
+                                        },
+                                        # These conditions were previously filtered out
+                                        {
+                                            "type": "GCPEndpointAvailable",
+                                            "status": "True",
+                                        },
+                                        {
+                                            "type": "GCPServiceAttachmentAvailable",
+                                            "status": "True",
+                                        },
+                                        {
+                                            "type": "ValidGCPWorkloadIdentity",
+                                            "status": "True",
+                                        },
+                                        {"type": "EtcdAvailable", "status": "True"},
+                                        {
+                                            "type": "InfrastructureReady",
+                                            "status": "True",
+                                        },
+                                        {
+                                            "type": "ReconciliationSucceeded",
+                                            "status": "True",
+                                        },
+                                    ]
+                                },
+                            }
+                        }
+                    },
+                }
+            ]
+        }
+
+        output_buffer = StringIO()
+        formatter = OutputFormatter(format_type="table")
+        formatter.console.file = output_buffer
+
+        formatter.print_controller_status(controller_data, "test-cluster-id")
+        output = output_buffer.getvalue()
+
+        # Verify ALL conditions are displayed, including those previously filtered
+        assert "Available" in output
+        assert "Progressing" in output
+        assert "Degraded" in output
+        assert "ClusterVersionSucceeding" in output
+        # These were previously not shown - now they should be
+        assert "GCPEndpointAvailable" in output
+        assert "GCPServiceAttachmentAvailable" in output
+        assert "ValidGCPWorkloadIdentity" in output
+        assert "EtcdAvailable" in output
+        assert "InfrastructureReady" in output
+        assert "ReconciliationSucceeded" in output
+
+    def test_condition_status_values_displayed(self):
+        """Test that condition status values and messages are displayed."""
+        # Use variables for messages to avoid line length issues
+        msg_available = "The hosted control plane is available"
+        msg_degraded = "The hosted cluster is not degraded"
+        conditions = [
+            {"type": "Available", "status": "True", "message": msg_available},
+            {"type": "Degraded", "status": "False", "message": msg_degraded},
+            {"type": "ExternalDNSReachable", "status": "Unknown"},
+        ]
+        controller_data = {
+            "controller_status": [
+                {
+                    "controller_name": "test-controller",
+                    "metadata": {
+                        "resources": {
+                            "hostedcluster": {
+                                "status": "Created",
+                                "resource_status": {"conditions": conditions},
+                            }
+                        }
+                    },
+                }
+            ]
+        }
+
+        output_buffer = StringIO()
+        formatter = OutputFormatter(format_type="table")
+        formatter.console.file = output_buffer
+
+        formatter.print_controller_status(controller_data, "test-cluster-id")
+        output = output_buffer.getvalue()
+
+        # Verify status values are displayed
+        assert "True" in output
+        assert "False" in output
+        assert "Unknown" in output
+
+        # Verify messages are displayed (may be wrapped across lines by Rich)
+        # Check key parts of messages are present
+        assert "hosted control plane" in output
+        assert "hosted cluster" in output
+        # ExternalDNSReachable should still be shown without message
+        assert "ExternalDNSReachable" in output
+
+    def test_long_condition_names_not_truncated(self):
+        """Test that long condition names are fully displayed."""
+        # Use variables for long condition type names to avoid line length issues
+        long_condition_1 = "ValidHostedControlPlaneConfiguration"
+        long_condition_2 = "ClusterVersionRetrievedUpdates"
+        conditions = [
+            {"type": long_condition_1, "status": "True"},
+            {"type": long_condition_2, "status": "False"},
+        ]
+        controller_data = {
+            "controller_status": [
+                {
+                    "controller_name": "test-controller",
+                    "metadata": {
+                        "resources": {
+                            "hostedcluster": {
+                                "status": "Created",
+                                "resource_status": {"conditions": conditions},
+                            }
+                        }
+                    },
+                }
+            ]
+        }
+
+        output_buffer = StringIO()
+        formatter = OutputFormatter(format_type="table")
+        formatter.console.file = output_buffer
+
+        formatter.print_controller_status(controller_data, "test-cluster-id")
+        output = output_buffer.getvalue()
+
+        # Verify long names are not truncated (no ellipsis in condition names)
+        assert "ValidHostedControlPlaneConfiguration" in output
+        assert "ClusterVersionRetrievedUpdates" in output
+
+    def test_empty_conditions_handled(self):
+        """Test that empty conditions list is handled gracefully."""
+        controller_data = {
+            "controller_status": [
+                {
+                    "controller_name": "test-controller",
+                    "metadata": {
+                        "resources": {
+                            "hostedcluster": {
+                                "status": "Created",
+                                "resource_status": {"conditions": []},
+                            }
+                        }
+                    },
+                }
+            ]
+        }
+
+        output_buffer = StringIO()
+        formatter = OutputFormatter(format_type="table")
+        formatter.console.file = output_buffer
+
+        # Should not raise an exception
+        formatter.print_controller_status(controller_data, "test-cluster-id")
+        output = output_buffer.getvalue()
+
+        # Should still show the resource
+        assert "Hostedcluster" in output
