@@ -375,7 +375,6 @@ class OutputFormatter:
                 "    Ready",
                 f"[{ready_color}]{ready_status}[/{ready_color}]",
             )
-            table.add_row("    Nodes", nodepool.get_node_info())
             table.add_row("    Age", nodepool.get_age())
 
         self.console.print(table)
