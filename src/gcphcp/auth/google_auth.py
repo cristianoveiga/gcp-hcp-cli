@@ -5,7 +5,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from google.auth import default
 from google.auth.credentials import Credentials
@@ -33,6 +33,16 @@ REQUIRED_SCOPES = [
 # Default credentials file path
 DEFAULT_CREDENTIALS_PATH = Path.home() / ".gcphcp" / "credentials.json"
 
+# Default authentication state file path
+DEFAULT_AUTH_STATE_PATH = Path.home() / ".gcphcp" / "auth_state.json"
+
+
+class AuthMethod:
+    """Authentication method identifiers."""
+
+    GCLOUD = "gcloud"
+    OAUTH = "oauth"
+
 
 class GoogleCloudAuth:
     """Google Cloud authentication manager for GCP HCP CLI."""
@@ -42,6 +52,7 @@ class GoogleCloudAuth:
         credentials_path: Optional[Path] = None,
         client_secrets_path: Optional[Path] = None,
         audience: Optional[str] = None,
+        auth_state_path: Optional[Path] = None,
     ) -> None:
         """Initialize the authentication manager.
 
@@ -49,12 +60,17 @@ class GoogleCloudAuth:
             credentials_path: Path to stored user credentials file
             client_secrets_path: Path to OAuth client secrets file
             audience: JWT audience for identity tokens
+            auth_state_path: Path to authentication state file
         """
         self.credentials_path = credentials_path or DEFAULT_CREDENTIALS_PATH
         self.client_secrets_path = client_secrets_path
         self.audience = audience
+        self.auth_state_path = auth_state_path or DEFAULT_AUTH_STATE_PATH
         self._credentials: Optional[Credentials] = None
         self._user_email: Optional[str] = None
+        self._auth_method: Optional[str] = None
+        self._gcloud_check_cache: Optional[Tuple[bool, float]] = None
+        self._gcloud_cache_ttl: float = 60.0  # Cache gcloud checks for 60 seconds
 
     def authenticate(self, force_reauth: bool = False) -> Tuple[str, str]:
         """Authenticate and return identity token and user email.
@@ -71,7 +87,10 @@ class GoogleCloudAuth:
         try:
             # Try to use gcloud print-identity-token without audience first
             try:
-                return self._get_identity_token_without_audience()
+                identity_token, user_email = self._get_identity_token_without_audience()
+                # Save auth state to track that gcloud was used
+                self._save_auth_state(AuthMethod.GCLOUD, user_email)
+                return identity_token, user_email
             except AuthenticationError as e:
                 logger.warning(f"Failed to get identity token from gcloud: {e}")
                 logger.info("Falling back to OAuth flow")
@@ -95,13 +114,13 @@ class GoogleCloudAuth:
                 raise AuthenticationError("Failed to obtain ID token from credentials")
 
             # Extract user email from credentials
-            user_email = self._extract_user_email()
-            if not user_email:
+            extracted_email = self._extract_user_email()
+            if not extracted_email:
                 raise AuthenticationError(
                     "Failed to extract user email from credentials"
                 )
 
-            return id_token, user_email
+            return id_token, extracted_email
 
         except (RefreshError, DefaultCredentialsError) as e:
             raise AuthenticationError(f"Authentication failed: {e}", cause=e)
@@ -271,6 +290,10 @@ class GoogleCloudAuth:
             os.chmod(self.credentials_path, 0o600)
             logger.debug(f"Saved credentials to {self.credentials_path}")
 
+            # Save auth state to track that OAuth was used
+            if user_email:
+                self._save_auth_state(AuthMethod.OAUTH, user_email)
+
         except Exception as e:
             logger.warning(f"Failed to save credentials: {e}")
 
@@ -296,8 +319,132 @@ class GoogleCloudAuth:
             self.credentials_path.unlink()
             logger.info("Stored credentials removed")
 
+        # Also remove auth state file
+        if self.auth_state_path.exists():
+            self.auth_state_path.unlink()
+            logger.info("Authentication state removed")
+
         self._credentials = None
         self._user_email = None
+
+    def _load_auth_state(self) -> Optional[Dict[str, Any]]:
+        """Load authentication state from file.
+
+        Returns:
+            Dict with method, user_email, and timestamp, or None if not found/invalid
+        """
+        try:
+            if not self.auth_state_path.exists():
+                return None
+
+            with open(self.auth_state_path) as f:
+                state = json.load(f)
+
+            # Validate state has required fields
+            if isinstance(state, dict) and "method" in state:
+                return state
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Failed to load auth state: {e}")
+            return None
+
+    def _save_auth_state(self, method: str, user_email: str) -> None:
+        """Save authentication state to file.
+
+        Args:
+            method: Authentication method used (gcloud or oauth)
+            user_email: User's email address
+        """
+        import time
+        import tempfile
+
+        state = {
+            "method": method,
+            "user_email": user_email,
+            "timestamp": time.time(),
+        }
+
+        try:
+            # Ensure directory exists
+            self.auth_state_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Atomic write using temp file
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=self.auth_state_path.parent,
+                delete=False,
+                prefix=".auth_state_",
+                suffix=".tmp",
+            ) as tmp_file:
+                json.dump(state, tmp_file, indent=2)
+                tmp_path = Path(tmp_file.name)
+
+            # Set permissions before rename
+            os.chmod(tmp_path, 0o600)
+
+            # Atomic rename
+            tmp_path.rename(self.auth_state_path)
+
+            logger.debug(
+                f"Saved auth state (method={method}) to {self.auth_state_path}"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to save auth state: {e}")
+            # Clean up temp file if it exists
+            if "tmp_path" in locals() and tmp_path.exists():
+                tmp_path.unlink()
+
+    def _check_gcloud_available(self) -> bool:
+        """Check if gcloud is available and user is authenticated.
+
+        Results are cached for performance (60 seconds by default).
+
+        Returns:
+            True if gcloud is installed and has an active account
+        """
+        import time
+
+        # Check cache
+        if self._gcloud_check_cache is not None:
+            cached_result, cached_time = self._gcloud_check_cache
+            if time.time() - cached_time < self._gcloud_cache_ttl:
+                logger.debug(f"Using cached gcloud availability: {cached_result}")
+                return cached_result
+
+        try:
+            # Check for active gcloud account
+            cmd = [
+                "gcloud",
+                "auth",
+                "list",
+                "--filter=status:ACTIVE",
+                "--format=value(account)",
+            ]
+            logger.debug(f"Checking gcloud availability: {' '.join(cmd)}")
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5,  # Short timeout for quick check
+            )
+
+            is_available = result.returncode == 0 and bool(result.stdout.strip())
+
+            # Cache result
+            self._gcloud_check_cache = (is_available, time.time())
+            logger.debug(f"gcloud available: {is_available}")
+
+            return is_available
+
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logger.debug(f"gcloud check failed: {e}")
+            # Cache negative result
+            self._gcloud_check_cache = (False, time.time())
+            return False
 
     def _get_identity_token_without_audience(self) -> Tuple[str, str]:
         """Get identity token without audience using gcloud.
@@ -435,18 +582,80 @@ class GoogleCloudAuth:
     def is_authenticated(self) -> bool:
         """Check if user is currently authenticated.
 
+        Checks authentication based on the method used (gcloud or OAuth).
+        For gcloud: checks if gcloud is still authenticated (with caching).
+        For OAuth: checks if credentials file exists and is valid.
+
         Returns:
             True if authenticated with valid credentials, False otherwise
         """
         try:
-            if not self._credentials and not self._load_stored_credentials():
-                return False
+            # Load authentication state
+            auth_state = self._load_auth_state()
 
-            # Check if credentials are valid and not expired
-            if self._credentials and self._credentials.expired:
-                self._refresh_credentials()
+            if auth_state:
+                method = auth_state.get("method")
 
-            return bool(self._credentials and self._credentials.token)
+                # Check gcloud authentication
+                if method == AuthMethod.GCLOUD:
+                    if self._check_gcloud_available():
+                        logger.debug("Authenticated via gcloud")
+                        return True
+                    logger.debug("gcloud no longer authenticated, trying fallback")
+                    # Gcloud no longer authenticated, fall through to check OAuth
 
-        except Exception:
+                # Check OAuth credentials
+                elif method == AuthMethod.OAUTH:
+                    if self._credentials or self._load_stored_credentials():
+                        if self._credentials and not self._credentials.expired:
+                            logger.debug("Authenticated via OAuth (valid credentials)")
+                            return True
+                        if self._credentials and self._credentials.expired:
+                            try:
+                                self._refresh_credentials()
+                                logger.debug(
+                                    "Authenticated via OAuth (refreshed credentials)"
+                                )
+                                return True
+                            except TokenRefreshError:
+                                logger.debug("Failed to refresh OAuth credentials")
+                                return False
+
+            # Backwards compatibility: check credentials.json even without state
+            # First check if credentials are already loaded (e.g., for testing)
+            if self._credentials:
+                if not self._credentials.expired:
+                    logger.debug("Authenticated via in-memory credentials")
+                    return True
+                # Try to refresh expired credentials
+                try:
+                    self._refresh_credentials()
+                    logger.debug("Authenticated via refreshed in-memory credentials")
+                    return True
+                except TokenRefreshError:
+                    logger.debug("Failed to refresh in-memory credentials")
+                    return False
+
+            # Try to load credentials from file
+            if self._load_stored_credentials():
+                if self._credentials and not self._credentials.expired:
+                    logger.debug(
+                        "Authenticated via stored credentials (backwards compat)"
+                    )
+                    return True
+                if self._credentials and self._credentials.expired:
+                    try:
+                        self._refresh_credentials()
+                        logger.debug(
+                            "Authenticated via refreshed credentials (backwards compat)"
+                        )
+                        return True
+                    except TokenRefreshError:
+                        logger.debug("Failed to refresh credentials (backwards compat)")
+                        return False
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Authentication check failed: {e}")
             return False
