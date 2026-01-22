@@ -27,6 +27,7 @@ MAX_INFRA_ID_LENGTH = 15
 SERVICE_ACCOUNTS = {
     "ctrlplane-op": "Control Plane Operator",
     "nodepool-mgmt": "Node Pool Management",
+    "cloud-controller": "Cloud Controller Manager",
 }
 
 # Error message for missing hypershift CLI
@@ -253,6 +254,7 @@ def iam_config_to_wif_spec(iam_config: Dict[str, Any]) -> Dict[str, Any]:
         "serviceAccountsRef": {
             "controlPlaneEmail": service_accounts.get("ctrlplane-op"),
             "nodePoolEmail": service_accounts.get("nodepool-mgmt"),
+            "cloudControllerEmail": service_accounts.get("cloud-controller"),
         },
     }
 
