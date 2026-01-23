@@ -109,6 +109,7 @@ class TestValidateWifConfig:
             "serviceAccounts": {
                 "ctrlplane-op": "sa1@example.com",
                 "nodepool-mgmt": "sa2@example.com",
+                "cloud-controller": "sa3@example.com",
             },
         }
 
@@ -187,6 +188,7 @@ class TestWifConfigToClusterSpec:
             "serviceAccounts": {
                 "ctrlplane-op": "ctrlplane@example.com",
                 "nodepool-mgmt": "nodepool@example.com",
+                "cloud-controller": "cloudcontroller@example.com",
             },
         }
 
@@ -198,6 +200,8 @@ class TestWifConfigToClusterSpec:
         ctrl_email = result["serviceAccountsRef"]["controlPlaneEmail"]
         assert ctrl_email == "ctrlplane@example.com"
         assert result["serviceAccountsRef"]["nodePoolEmail"] == "nodepool@example.com"
+        ccm_email = result["serviceAccountsRef"]["cloudControllerEmail"]
+        assert ccm_email == "cloudcontroller@example.com"
 
     def test_iam_config_to_wif_spec_empty_config(self):
         """When converting empty config it should return None values."""
@@ -298,6 +302,7 @@ class TestServiceAccountsConstant:
         """When checking SERVICE_ACCOUNTS it should have required keys."""
         assert "ctrlplane-op" in SERVICE_ACCOUNTS
         assert "nodepool-mgmt" in SERVICE_ACCOUNTS
+        assert "cloud-controller" in SERVICE_ACCOUNTS
 
     def test_service_accounts_values_are_strings(self):
         """When checking SERVICE_ACCOUNTS values they should be strings."""
